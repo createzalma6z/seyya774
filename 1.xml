@@ -96,7 +96,7 @@ window.YaGames = { init: function() {
 var CDN        = "https://cdn.jsdelivr.net/gh/createzalma6z/seyya774@main/Build";
 var SA_CDN     = "https://cdn.jsdelivr.net/gh/createzalma6z/seyya774@main/StreamingAssets";
 var BUNDLE_FILE= "aa/WebGL/maps_scenes_all_e9d2bb4a3c51b37856f2c025ca984631.bundle";
-var BUNDLE_PARTS= 7;   /* 48.2MB / 8MB = 7 part */
+var BUNDLE_PARTS= 6;   /* 48.2MB / 8MB = 7 part */
 var _bundleBlobUrl = null;
 
 var DATA_PARTS = 7;
