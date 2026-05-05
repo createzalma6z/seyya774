@@ -94,6 +94,11 @@ window.YaGames = { init: function() {
 
 <script>
 var CDN        = "https://cdn.jsdelivr.net/gh/createzalma6z/seyya774@main/Build";
+var SA_CDN     = "https://cdn.jsdelivr.net/gh/createzalma6z/seyya774@main/StreamingAssets";
+var BUNDLE_FILE= "aa/WebGL/maps_scenes_all_e9d2bb4a3c51b37856f2c025ca984631.bundle";
+var BUNDLE_PARTS= 7;   /* 48.2MB / 8MB = 7 part */
+var _bundleBlobUrl = null;
+
 var DATA_PARTS = 7;
 var WASM_PARTS = 5;
 
@@ -107,7 +112,7 @@ var config = {
   dataUrl:            null,
   frameworkUrl:       buildUrl + "/" + FRAMEWORK,
   codeUrl:            null,
-  streamingAssetsUrl: "StreamingAssets",
+  streamingAssetsUrl: SA_CDN,
   companyName:        "abdelstd",
   productName:        "miraculous heroes",
   productVersion:     "1"
@@ -182,7 +187,7 @@ function SetVisibility(v){
 function PauseCallback(){  isPausedGame=true;  YG2Instance('SetPauseGame','true');  }
 function ResumeCallback(){ isPausedGame=false; YG2Instance('SetPauseGame','false'); }
 
-/* ── PART İNDİRME ─────────────────────────────────────────── */
+/* ── PART INDIRME ─────────────────────────────────────────── */
 async function fetchParts(baseUrl, partCount) {
   var parts=[];
   for(var i=0;i<partCount;i++){
@@ -200,6 +205,36 @@ function brotliBlobUrl(uint8,filename){
   return URL.createObjectURL(blob)+'#'+encodeURIComponent(filename);
 }
 
+/* ── BUNDLE PRELOAD + FETCH INTERCEPT ─────────────────────── */
+async function preloadBundle() {
+  console.log('[Bundle] Downloading '+BUNDLE_PARTS+' parts...');
+  var bytes = await fetchParts(SA_CDN + "/" + BUNDLE_FILE, BUNDLE_PARTS);
+  var blob = new Blob([bytes], {type:'application/octet-stream'});
+  _bundleBlobUrl = URL.createObjectURL(blob);
+  console.log('[Bundle] Ready: '+bytes.length+' bytes');
+}
+
+/* fetch intercept — Unity bu dosyayi istediginde blob dondur */
+(function(){
+  var _orig = window.fetch.bind(window);
+  window.fetch = function(url, opts) {
+    var s = typeof url === 'string' ? url : (url && url.url) || String(url);
+    if (s.includes('maps_scenes_all_e9d2bb4a3c51b37856f2c025ca984631') && _bundleBlobUrl) {
+      console.log('[Bundle] fetch intercepted, serving blob');
+      return _orig(_bundleBlobUrl, opts);
+    }
+    return _orig(url, opts);
+  };
+  var _xOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url, async, u, p) {
+    var s = typeof url === 'string' ? url : String(url);
+    if (s.includes('maps_scenes_all_e9d2bb4a3c51b37856f2c025ca984631') && _bundleBlobUrl) {
+      url = _bundleBlobUrl;
+    }
+    return _xOpen.call(this, method, url, async !== false, u, p);
+  };
+})();
+
 /* ── LOADER ───────────────────────────────────────────────── */
 var script=document.createElement("script");
 script.src=buildUrl+"/"+LOADER+".loader.js";
@@ -209,6 +244,7 @@ script.onload=async function(){
     var wasmBytes=await fetchParts(buildUrl+"/"+WASM_FILE+".wasm.br", WASM_PARTS);
     config.dataUrl = brotliBlobUrl(dataBytes, DATA_FILE+".data.br");
     config.codeUrl = brotliBlobUrl(wasmBytes,  WASM_FILE+".wasm.br");
+    await preloadBundle();
   } catch(e){ alert("Download error: "+e.message); return; }
 
   StartUnityInstance=function(){
@@ -515,36 +551,32 @@ document.body.appendChild(script);
 </script>
 <!-- Sticky Bottom Center Ad (728x90) with Smooth Slide-Out and Reappearance -->
 <style>
-  /* Container: Bottom center, fixed, with overflow hidden */
   #ad-container {
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: min(728px, calc(100% - 20px)); /* 728px, 10px margin on mobile */
+    width: min(728px, calc(100% - 20px));
     height: 90px;
     background: rgba(0, 0, 0, 0.90);
     display: none;
     z-index: 99999;
-    border-radius: 0; /* Sharp corners */
+    border-radius: 0;
     overflow: hidden;
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.45);
     box-sizing: border-box;
-    transition: transform 0.5s ease-in-out; /* Smooth slide-in/out animation */
+    transition: transform 0.5s ease-in-out;
   }
-
-  /* Slide-out animation */
   #ad-container.hidden {
-    transform: translate(-50%, 100%); /* Slide down out of view */
+    transform: translate(-50%, 100%);
   }
-
   #ad-iframe {
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: 745px; /* Updated width */
-    height: 90px; /* Updated height */
+    width: 745px;
+    height: 90px;
     border: 0;
     display: block;
     overflow: hidden;
@@ -553,14 +585,7 @@ document.body.appendChild(script);
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
-  #ad-iframe::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-  }
-
-  /* Close button with arrow */
+  #ad-iframe::-webkit-scrollbar { display: none; width: 0; height: 0; }
   #close-ad {
     position: absolute;
     top: 6px;
@@ -577,38 +602,19 @@ document.body.appendChild(script);
     display: flex;
     align-items: center;
   }
-  #close-ad.enabled {
-    cursor: pointer;
-    opacity: 1;
-  }
-  #close-ad::before {
-    content: '↓'; /* Down arrow for bottom ad */
-    margin-right: 4px;
-  }
-
-  /* Right mask for scrollbar */
+  #close-ad.enabled { cursor: pointer; opacity: 1; }
+  #close-ad::before { content: '\2193'; margin-right: 4px; }
   #ad-right-mask {
     position: absolute;
-    top: 0;
-    right: 0;
-    width: 12px;
-    height: 100%;
+    top: 0; right: 0;
+    width: 12px; height: 100%;
     pointer-events: none;
-    background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.9));
+    background: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.9));
     z-index: 99999;
   }
-
-  /* Mobile adjustments */
   @media (max-width: 440px) {
-    #ad-container {
-      width: calc(100% - 12px);
-      left: 50%;
-      transform: translateX(-50%);
-      border-radius: 0; /* Sharp corners on mobile */
-    }
-    #ad-iframe {
-      width: 728px;
-    }
+    #ad-container { width: calc(100% - 12px); left: 50%; transform: translateX(-50%); }
+    #ad-iframe { width: 728px; }
   }
 </style>
 
@@ -616,10 +622,7 @@ document.body.appendChild(script);
   <iframe
     id="ad-iframe"
     src="https://script.google.com/macros/s/AKfycbxLG5DHBe-sIbduDvwQZYJ3oaX_ha7rsvroprCFkQsnpZK_PEdipNia5ghxI_sdXYpv/exec"
-    width="768px"
-    height="95px"
-    scrolling="no"
-    frameborder="0"
+    width="768px" height="95px" scrolling="no" frameborder="0"
     sandbox="allow-scripts allow-popups allow-same-origin"
   ></iframe>
   <button id="close-ad" disabled>Close (12)</button>
@@ -628,24 +631,20 @@ document.body.appendChild(script);
 
 <script>
   (function () {
-    const showDelay = 2000; // 2 seconds delay before first show
-    const countdownStart = 12; // 12 seconds countdown
-    const reappearDelay = 150000; // 25 seconds before reappearance
+    const showDelay = 2000;
+    const countdownStart = 12;
+    const reappearDelay = 150000;
     const adContainer = document.getElementById('ad-container');
     const closeBtn = document.getElementById('close-ad');
 
     function showAd() {
-      // Show ad with smooth slide-in
       adContainer.style.display = 'block';
       adContainer.classList.remove('hidden');
       adContainer.setAttribute('aria-hidden', 'false');
-
-      // Start countdown
       let timeLeft = countdownStart;
       closeBtn.textContent = `Close (${timeLeft})`;
       closeBtn.disabled = true;
       closeBtn.classList.remove('enabled');
-
       const t = setInterval(() => {
         timeLeft--;
         if (timeLeft > 0) {
@@ -659,15 +658,12 @@ document.body.appendChild(script);
       }, 1000);
     }
 
-    // Initial ad show
     setTimeout(showAd, showDelay);
 
-    // Close with animation and schedule reappearance
     closeBtn.addEventListener('click', () => {
       if (closeBtn.disabled) return;
       adContainer.classList.add('hidden');
       adContainer.setAttribute('aria-hidden', 'true');
-      // Schedule reappearance without removing or reloading iframe
       setTimeout(showAd, reappearDelay);
     });
   })();
